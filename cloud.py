@@ -14,7 +14,7 @@ import random
 
 
 DEFAULT_KEYSIZE = 512
-DEFAULT_MSGSIZE = 32
+DEFAULT_MSGSIZE = 32 # The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
 DEFAULT_SECURITYSIZE = 80
 DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2) # of fractional bits
 NETWORK_DELAY = 0 #0.01 # 10 ms
@@ -120,10 +120,8 @@ class Cloud:
 		self.l = DEFAULT_MSGSIZE
 		self.sigma = DEFAULT_SECURITYSIZE
 		self.delta_A = [0]*m
-		# mu = [0, 0]
 		mu = numpy.zeros(m).astype(int)
 		# mu = [x*(2**DEFAULT_PRECISION) for x in numpy.random.randint(-1,1, size=m).astype(int)]
-		# print(mu)
 		self.mu = encrypt_vector(pubkey, mu)
 		param = numpy.loadtxt(fileparam, delimiter='\n')
 		# self.K = param[0]
@@ -132,10 +130,8 @@ class Cloud:
 		self.eta = param[1] 
 		coeff_mu = numpy.identity(m) + self.eta*numpy.dot(AinvQ,At) ### I-\eta AQ^{-1}A'
 		self.coeff_mu = fixed_point_matrix(coeff_mu)
-		# print(self.coeff_mu)
 		coeff_c = self.eta*AinvQ ### -\etaAQ^{-1}
 		self.coeff_c = fixed_point_matrix(coeff_c)
-		# print(self.coeff_c)
 		coeff_x = numpy.dot(minvQ,At)
 		self.coeff_x = fixed_point_matrix(coeff_x)
 		self.gen_rands()
@@ -145,11 +141,9 @@ class Cloud:
 		l = self.l
 		sigma = self.sigma
 		K = self.K
-		# rn = [[0,0]]*m
 		random_state = gmpy2.random_state(seed)
 		rn = [[[gmpy2.mpz_urandomb(random_state,l + sigma + 1),gmpy2.mpz_urandomb(random_state,l + sigma + 1)] for i in range(0,m)] for k in range(0,K)]
 		self.obfuscations = rn
-		# rn = [0]*m
 		rn = [[gmpy2.mpz_urandomb(random_state,l + sigma + 1) for i in range(0,m)] for k in range(0,K)]
 		self.rn = rn
 		random_state = gmpy2.random_state(seed)
@@ -165,17 +159,9 @@ class Cloud:
 		self.er = er
 
 	def compute_grad(self,b_A,c_A):
-		# mu_bar = self.mu
-		# temp = sum_encrypted_vectors(numpy.dot(self.At,mu_bar),c_A)
-		# grad = diff_encrypted_vectors(numpy.dot(self.AinvQ,temp),b_A)
-		# mu_bar = sum_encrypted_vectors(mu_bar,mul_sc_encrypted_vectors(grad,[self.eta]*self.m))
 		mu_bar = sum_encrypted_vectors(numpy.dot(self.coeff_mu,self.mu),numpy.dot(self.coeff_c,c_A))
 		mu_bar = sum_encrypted_vectors(mu_bar,[x*fixed_point(-self.eta) for x in b_A])
 		self.mu_bar = mu_bar ### \mu_bar*2^{32}
-		# mu0 = numpy.dot(self.coeff_mu,self.mu)
-		# mu1 = numpy.dot(self.coeff_c,c_A)
-		# mu2 = [x*fixed_point(-self.eta) for x in b_A]
-		# return mu0,mu1,mu2
 
 	def temporary_prec_mu(self):
 		m = self.m
@@ -188,8 +174,6 @@ class Cloud:
 		return temp_mu
 	
 	def compute_primal_optimum(self,c_A):
-		# x = sum_encrypted_vectors(numpy.dot(self.At,self.mu),c_A)
-		# x = (numpy.dot(self.minvQ,x)).tolist()
 		x = numpy.dot(self.coeff_x,self.mu)
 		x = sum_encrypted_vectors(x,numpy.dot(self.minvQ,c_A))
 		return x
@@ -239,7 +223,8 @@ class Cloud:
 
 	def correct_d(self,d):
 		for i in range(0,self.m):
-			if (self.r[i] < mpz(self.DGK_pubkey.n-1)/2):
+			# if (self.r[i] < mpz(self.DGK_pubkey.n-1)/2):
+			if (self.r[i] < mpz(self.N-1)/2):
 				d[i] = self.DGK_pubkey.raw_encrypt(0,self.coinsDGK.pop())
 		return d
 
@@ -274,8 +259,10 @@ class Cloud:
 				else: prod = testDGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),int(beta[l1j]),DGK_pubkey)
 				if (int(alpha[l1j]) == int(t_alpha[l1j])):
 					w[l1j] = prod
-				else: w[l1j] = testDGK.diff_encrypted(prod,di,DGK_pubkey)
-				w[l1j] = testDGK.mul_sc_encrypted(w[l1j],2**j,DGK_pubkey)
+				else:
+					w[l1j] = testDGK.diff_encrypted(prod,di,DGK_pubkey)
+					w[l1j] = gmpy2.powmod(w[l1j],l,DGK_pubkey.n)
+				# w[l1j] = testDGK.mul_sc_encrypted(w[l1j],2**j,DGK_pubkey)
 			w3 = [0]*l
 			for j in range(0,l):
 				l1j = l-1-j
@@ -366,8 +353,8 @@ def get_DGK_matrix(received_dict):
 	return [[mpz(y) for y in x] for x in received_dict]
 
 def main():
-	n_initial = 90
-	m_initial = 21
+	n_initial = 20
+	m_initial = 13
 	n_final = n_initial
 	m_final = m_initial
 	# Create a TCP/IP socket
@@ -418,7 +405,6 @@ def main():
 						cloud.obfuscation = cloud.obfuscations[k]
 						cloud.r = cloud.rn[k]		
 						cloud.compute_grad(b_A,c_A)
-						# print(decrypt_vector(target.privkey,cloud.mu_bar))
 						temp_mu = cloud.temporary_prec_mu()
 						# Send temp_mu to the target
 						data = send_encr_data(temp_mu)

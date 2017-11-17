@@ -92,8 +92,8 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 
 
 def main():
-	n = 90;
-	m = 21;
+	n = 20;
+	m = 13;
 	fileA = "Data/A"+str(n)+"_"+str(m)+".txt"
 	fileQ = "Data/Q"+str(n)+"_"+str(m)+".txt"
 	fileb = "Data/b"+str(n)+"_"+str(m)+".txt"
@@ -112,6 +112,6 @@ def main():
 
 	x = grad_sol_strong(A,b_A,c_A,m,Q,K,eta)
 	# print("%.4f" % x)
-	print(["%.6f"% i for i in x])
+	print(["%.8f"% i for i in x])
 
 main()

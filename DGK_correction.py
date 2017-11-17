@@ -12,7 +12,7 @@ except ImportError:
     HAVE_GMP = False
 
 DEFAULT_KEYSIZE = 512
-DEFAULT_MSGSIZE = 32
+DEFAULT_MSGSIZE = 16
 DEFAULT_SECURITYSIZE = 160
 
 def isprime(x):

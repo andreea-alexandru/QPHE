@@ -14,10 +14,11 @@ import os
 
 
 DEFAULT_KEYSIZE = 512
-DEFAULT_MSGSIZE = 32
+DEFAULT_MSGSIZE = 32 # The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
 DEFAULT_SECURITYSIZE = 80
 DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2) # of fractional bits
 NETWORK_DELAY = 0 #0.01 # 10 ms
+
 
 try:
     import gmpy2
@@ -87,7 +88,7 @@ def retrieve_fixed_point_vector(vec,prec=DEFAULT_PRECISION):
 	return [retrieve_fixed_point(x) for x in vec]
 
 class Target:
-	def __init__(self, l=DEFAULT_MSGSIZE,t_DGK=160):
+	def __init__(self, l=DEFAULT_MSGSIZE,t_DGK=2*DEFAULT_SECURITYSIZE):
 		keypair = paillier.generate_paillier_keypair(n_length=DEFAULT_KEYSIZE)
 		self.pubkey, self.privkey = keypair
 		self.l = l
@@ -102,7 +103,7 @@ class Target:
 		coinsP = [gmpy2.mpz_urandomb(random_state,N_len-1) for i in range(0,5*m*K)]
 		# self.coinsP = [gmpy2.powmod(x, self.pubkey.n, self.pubkey.nsquare) for x in coinsP]
 		self.coinsP = coinsP
-		coinsDGK = [gmpy2.mpz_urandomb(random_state,2*self.t_DGK) for i in range(0,(self.l+1)*m*K)]
+		coinsDGK = [gmpy2.mpz_urandomb(random_state,t2) for i in range(0,(self.l+1)*m*K)]
 		self.coinsDGK = coinsDGK
 		self.delta_B = [0]*self.m
 
@@ -110,9 +111,9 @@ class Target:
 		l = self.l
 		z = decrypt_vector(self.privkey,msg)
 		z = [mpz(x) for x in z]
-		# print([self.pubkey.n - x for x in z])
 		self.z = z
-		self.d = [(x >= mpz(self.DGK_pubkey.n-1)/2)*1 for x in z]
+		# self.d = [(x >= mpz(self.DGK_pubkey.n-1)/2)*1 for x in z]
+		self.d = [(x >= mpz(self.pubkey.n-1)/2)*1 for x in z]
 		beta = [gmpy2.f_mod_2exp(x,l) for x in z]
 		beta = [x.digits(2) for x in beta]
 		for i in range(0,self.m):
