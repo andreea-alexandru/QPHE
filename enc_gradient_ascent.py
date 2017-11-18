@@ -15,7 +15,10 @@ except ImportError:
 DEFAULT_MSGSIZE = 32
 DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2) # of fractional bits
 DEFAULT_KEYSIZE = 512
+<<<<<<< HEAD
 DEFAULT_SECURITYSIZE = 80
+=======
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 
 def encrypt_vector(pubkey, x, coins=None):
 	if (coins==None):
@@ -60,8 +63,11 @@ def dot_m_encrypted_vectors(x, A):
     return [dot_sc_encrypted_vectors(x,vec) for vec in A]
 
 def grad_sol_strong(A,b,c,m,Q,K,eta):
+<<<<<<< HEAD
 	l = DEFAULT_MSGSIZE
 	sigma = DEFAULT_SECURITYSIZE
+=======
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 	At = A.transpose()
 	minvQ = -numpy.linalg.inv(Q)			### - Q^{-1}
 	AinvQ = numpy.dot(A,minvQ)				### - AQ^{-1}
@@ -73,6 +79,7 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 
 	keypair = paillier.generate_paillier_keypair(n_length=DEFAULT_KEYSIZE)
 	pubkey, privkey = keypair
+<<<<<<< HEAD
 	seed = 42
 	random_state = gmpy2.random_state(seed)
 	coinsP = [gmpy2.mpz_urandomb(random_state,(pubkey.n).bit_length()-1) for i in range(0,4*m*K)]
@@ -80,6 +87,10 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 	enc_b = encrypt_vector(pubkey,b,coinsP)
 	enc_c = encrypt_vector(pubkey,c)
 	rn = [2**DEFAULT_PRECISION*gmpy2.mpz_urandomb(random_state,l+sigma) for i in range(0,m*K)]
+=======
+	enc_b = encrypt_vector(pubkey,b)
+	enc_c = encrypt_vector(pubkey,c)
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 
 	# mu = numpy.random.randint(-1,1, size=m)
 	mu = numpy.zeros(m).astype(int)
@@ -89,6 +100,7 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 		emu_bar = sum_encrypted_vectors(numpy.dot(coeff_mu,emu),numpy.dot(coeff_c,enc_c))
 		emu_bar = sum_encrypted_vectors(emu_bar,[x*meta for x in enc_b])
 		mu_bar = decrypt_vector(privkey,emu_bar)
+<<<<<<< HEAD
 		mu_bar = retrieve_fixed_point_vector([int(x) for x in mu_bar])
 		# r = [rn.pop() for i in range(0,m)]
 		# emu_bar = sum_encrypted_vectors(emu_bar,r)
@@ -96,6 +108,9 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 		# mu_barr = retrieve_fixed_point_vector([int(x) for x in mu_barr])	### mu_bar * 2**f +r/2**f
 		# er = retrieve_fixed_point_vector(r)
 		# mu_bar = [mu_barr[i] - er[i] for i in range(0,m)]
+=======
+		mu_bar = retrieve_fixed_point_vector([int(x) for x in mu_bar])		### mu_bar * 2**f
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		# # mu_bar = [mpz(x/(2**DEFAULT_PRECISION))for x in mu_bar]
 		# print(mu_bar)
 		mu = numpy.maximum([0 for x in range(0,m)],mu_bar)
@@ -117,7 +132,11 @@ def main():
 	Q = numpy.loadtxt(fileQ, delimiter=',')
 	param = numpy.loadtxt(fileparam, delimiter='\n')
 	# K = int(param[0])
+<<<<<<< HEAD
 	K = 30
+=======
+	K = 10
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 	eta = param[1]
 	b_A = numpy.loadtxt(fileb, delimiter='\n')
 	c_A = numpy.loadtxt(filec, delimiter='\n')

@@ -47,10 +47,15 @@ class DGKpubkey:
 		nude_ciphertext = powmod(self.g, plaintext, self.n)
 		# nude_ciphertext = self.g**plaintext
 
+<<<<<<< HEAD
 		# r = r_value or self.get_random_lt_2t()
 		# obfuscator = powmod(self.h, r, self.n)
 		r = r_value or powmod(self.h, self.get_random_lt_2t(), self.n) # Pass the precomputed obfuscator
 		obfuscator = r		
+=======
+		r = r_value or self.get_random_lt_2t()
+		obfuscator = powmod(self.h, r, self.n)
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 
 		return (nude_ciphertext * obfuscator) % self.n
 

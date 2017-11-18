@@ -93,8 +93,11 @@ class Target:
 		self.pubkey, self.privkey = keypair
 		self.l = l
 		self.t_DGK = t_DGK
+<<<<<<< HEAD
 		self.generate_DGK()
 
+=======
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 
 	def params(self,m,K):
 		self.m = m
@@ -103,10 +106,16 @@ class Target:
 		N_len = self.pubkey.n.bit_length()
 		random_state = gmpy2.random_state(seed)
 		coinsP = [gmpy2.mpz_urandomb(random_state,N_len-1) for i in range(0,5*m*K)]
+<<<<<<< HEAD
 		coinsP = [gmpy2.powmod(x, self.pubkey.n, self.pubkey.nsquare) for x in coinsP]
 		self.coinsP = coinsP
 		coinsDGK = [gmpy2.mpz_urandomb(random_state,t2) for i in range(0,(self.l+1)*m*K)]
 		coinsDGK = [gmpy2.powmod(self.DGK_pubkey.h, x, self.DGK_pubkey.n) for x in coinsDGK]
+=======
+		# self.coinsP = [gmpy2.powmod(x, self.pubkey.n, self.pubkey.nsquare) for x in coinsP]
+		self.coinsP = coinsP
+		coinsDGK = [gmpy2.mpz_urandomb(random_state,t2) for i in range(0,(self.l+1)*m*K)]
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		self.coinsDGK = coinsDGK
 		self.delta_B = [0]*self.m
 
@@ -115,6 +124,10 @@ class Target:
 		z = decrypt_vector(self.privkey,msg)
 		z = [mpz(x) for x in z]
 		self.z = z
+<<<<<<< HEAD
+=======
+		# self.d = [(x >= mpz(self.DGK_pubkey.n-1)/2)*1 for x in z]
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		self.d = [(x >= mpz(self.pubkey.n-1)/2)*1 for x in z]
 		beta = [gmpy2.f_mod_2exp(x,l) for x in z]
 		beta = [x.digits(2) for x in beta]
@@ -223,6 +236,10 @@ def main():
 		print('Target: Connecting to {} port {}'.format(*server_address))
 		sock.connect(server_address)			
 		target = Target()
+<<<<<<< HEAD
+=======
+		target.generate_DGK()
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		pubkey = target.pubkey
 		privkey = target.privkey
 		DGK_pubkey = target.DGK_pubkey

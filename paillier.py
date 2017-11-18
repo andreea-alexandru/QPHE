@@ -123,10 +123,15 @@ class PaillierPublicKey(object):
             # (n+1)^plaintext = n*plaintext + 1 mod n^2
             nude_ciphertext = (self.n * plaintext + 1) % self.nsquare
 
+<<<<<<< HEAD
         # r = r_value or self.get_random_lt_n()
         # obfuscator = powmod(r, self.n, self.nsquare)
         r = r_value or powmod(self.get_random_lt_n(), self.n, self.nsquare) # Pass the precomputed obfuscator
         obfuscator = r
+=======
+        r = r_value or self.get_random_lt_n()
+        obfuscator = powmod(r, self.n, self.nsquare)
+>>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 
         return (nude_ciphertext * obfuscator) % self.nsquare
 
