@@ -60,7 +60,7 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 	for k in range (0,K):
 		mu_bar = numpy.dot(coeff_mu,mu)+numpy.dot(coeff_c,c)+[x*meta for x in b]	### mu_bar * 2**(2f)
 		mu_bar = retrieve_fixed_point_vector(mu_bar)		### mu_bar * 2**f
-		print(mu_bar)
+		# print(mu_bar)
 		mu = numpy.maximum(numpy.zeros(m),mu_bar)
 
 	x = numpy.dot(coeff_x,mu)+numpy.dot(minvQ,c)
@@ -69,8 +69,8 @@ def grad_sol_strong(A,b,c,m,Q,K,eta):
 
 
 def main():
-	n = 5;
-	m = 3;
+	n = 90;
+	m = 37;
 	fileA = "Data/A"+str(n)+"_"+str(m)+".txt"
 	fileQ = "Data/Q"+str(n)+"_"+str(m)+".txt"
 	fileb = "Data/b"+str(n)+"_"+str(m)+".txt"
@@ -80,7 +80,8 @@ def main():
 	Q = numpy.loadtxt(fileQ, delimiter=',')
 	param = numpy.loadtxt(fileparam, delimiter='\n')
 	# K = int(param[0])
-	K = 10
+	# print(K)
+	K = 30
 	eta = param[1]
 	b_A = numpy.loadtxt(fileb, delimiter='\n')
 	c_A = numpy.loadtxt(filec, delimiter='\n')
@@ -89,6 +90,6 @@ def main():
 
 	x = grad_sol_strong(A,b_A,c_A,m,Q,K,eta)
 	# print("%.4f" % x)
-	print(["%.4f"% i for i in x])
+	print(["%.8f"% i for i in x])
 
 main()

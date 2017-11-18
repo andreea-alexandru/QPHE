@@ -5,20 +5,12 @@ import sys,struct
 import json
 from gmpy2 import mpz
 import paillier
-<<<<<<< HEAD
-=======
-# from phe import util
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 import numpy
 import time
 import testDGK
 import random
 
 
-<<<<<<< HEAD
-=======
-
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 DEFAULT_KEYSIZE = 512
 DEFAULT_MSGSIZE = 32 # The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
 DEFAULT_SECURITYSIZE = 80
@@ -105,14 +97,9 @@ class Agents:
     	return self.enc_b_A, self.enc_c_A, self.m, self.n
 
 class Cloud:
-<<<<<<< HEAD
 	def __init__(self, pubkey, DGK_pubkey, fileA, fileQ, fileparam):
 		self.pubkey = pubkey
 		self.DGK_pubkey = DGK_pubkey
-=======
-	def __init__(self, pubkey, fileA, fileQ, fileparam):
-		self.pubkey = pubkey
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		A = numpy.loadtxt(fileA, delimiter=',')
 		Q = numpy.loadtxt(fileQ, delimiter=',')
 		self.A = A
@@ -138,11 +125,7 @@ class Cloud:
 		param = numpy.loadtxt(fileparam, delimiter='\n')
 		# self.K = param[0]
 		# self.K = int(self.K)
-<<<<<<< HEAD
 		self.K = 30
-=======
-		self.K = 10
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		self.eta = param[1] 
 		coeff_mu = numpy.identity(m) + self.eta*numpy.dot(AinvQ,At) ### I-\eta AQ^{-1}A'
 		self.coeff_mu = fixed_point_matrix(coeff_mu)
@@ -158,7 +141,6 @@ class Cloud:
 		sigma = self.sigma
 		K = self.K
 		random_state = gmpy2.random_state(seed)
-<<<<<<< HEAD
 		rn = [[[gmpy2.mpz_urandomb(random_state,l + sigma),gmpy2.mpz_urandomb(random_state,l + sigma)] for i in range(0,m)] for k in range(0,K)]
 		self.obfuscations = rn
 		rn = [[gmpy2.mpz_urandomb(random_state,l + sigma) for i in range(0,m)] for k in range(0,K)]
@@ -175,22 +157,6 @@ class Cloud:
 		# rn = [2**(l) for i in range(0,m*K)]
 		self.fixedNoise = encrypt_vector(self.pubkey, rn, coinsP)
 		er = encrypt_vector(self.pubkey,retrieve_fixed_point_vector([-x for x in rn]),coinsP)
-=======
-		rn = [[[gmpy2.mpz_urandomb(random_state,l + sigma + 1),gmpy2.mpz_urandomb(random_state,l + sigma + 1)] for i in range(0,m)] for k in range(0,K)]
-		self.obfuscations = rn
-		rn = [[gmpy2.mpz_urandomb(random_state,l + sigma + 1) for i in range(0,m)] for k in range(0,K)]
-		self.rn = rn
-		random_state = gmpy2.random_state(seed)
-		coinsP = [gmpy2.mpz_urandomb(random_state,self.N_len-1) for i in range(0,4*m*K)]
-		self.coinsP = coinsP
-		coinsDGK = [gmpy2.mpz_urandomb(random_state,2*sigma) for i in range(0,2*(l+1)*m*K)]
-		self.coinsDGK = coinsDGK
-		random_state = gmpy2.random_state(seed)
-		# rn = [2**l + gmpy2.mpz_urandomb(random_state,l + DEFAULT_PRECISION) for i in range(0,m*K)]
-		rn = [2**l for i in range(0,m*K)]
-		self.fixedNoise = encrypt_vector(self.pubkey, rn, coinsP)
-		er = encrypt_vector(self.pubkey,retrieve_fixed_point_vector([-x for x in rn]), coinsP)
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 		self.er = er
 
 	def compute_grad(self,b_A,c_A):
@@ -388,17 +354,10 @@ def get_DGK_matrix(received_dict):
 	return [[mpz(y) for y in x] for x in received_dict]
 
 def main():
-<<<<<<< HEAD
 	n_initial = 40
 	m_initial = 5
 	n_final = 90
 	m_final = 37
-=======
-	n_initial = 20
-	m_initial = 13
-	n_final = n_initial
-	m_final = m_initial
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print('Cloud: Socket successfully created')
@@ -433,12 +392,7 @@ def main():
 					fileparam = "Data/param"+str(n)+"_"+str(m)+".txt"
 					v = []; t = []
 					agents = Agents(pubkey,fileb,filec)
-<<<<<<< HEAD
 					cloud = Cloud(pubkey,DGK_pubkey,fileA,fileQ,fileparam)
-=======
-					cloud = Cloud(pubkey,fileA,fileQ,fileparam)
-					cloud.DGK_pubkey = DGK_pubkey
->>>>>>> ee98cce2f2beaf0080cf452f430c6f220d17f086
 					b_A, c_A, m, n = agents.send_data()
 					# Send m and K
 					K = cloud.K
