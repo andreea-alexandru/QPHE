@@ -354,10 +354,10 @@ def get_DGK_matrix(received_dict):
 	return [[mpz(y) for y in x] for x in received_dict]
 
 def main():
-	n_initial = 40
+	n_initial = 10
 	m_initial = 5
-	n_final = 90
-	m_final = 37
+	n_final = n_initial
+	m_final = m_initial
 	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print('Cloud: Socket successfully created')
