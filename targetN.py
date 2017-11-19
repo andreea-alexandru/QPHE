@@ -142,16 +142,21 @@ class Target:
 				if (int(self.DGK_privkey.raw_decrypt0(c[j])) == 0):
 					self.delta_B[i] = 1
 					break
-		return encrypt_vector(self.pubkey,self.delta_B,self.coinsP), encrypt_vector(self.pubkey,[mpz(gmpy2.f_div_2exp(self.z[i],l)) for i in range(0,m)],self.coinsP)
+		db = encrypt_vector(self.pubkey,self.delta_B,self.coinsP[-m:]); z = encrypt_vector(self.pubkey,[mpz(gmpy2.f_div_2exp(self.z[i],l)) for i in range(0,m)],self.coinsP[-2*m:-m])
+		self.coinsP = self.coinsP[:-2*m]
+		return db,z
 
 
 	def choose(self,a,b):
-		v = [0]*self.m
-		for i in range(0,self.m):
+		m = self.m
+		v = [0]*m
+		for i in range(0,m):
 			if self.t[i]==0: 
 				v[i] = a[i] + self.pubkey.encrypt(0,self.coinsP.pop())
 			else: v[i] = b[i] + self.pubkey.encrypt(0,self.coinsP.pop())
-		return v, encrypt_vector(self.pubkey,[int(self.t[i]) for i in range(0,self.m)],self.coinsP)
+		tt = encrypt_vector(self.pubkey,[int(self.t[i]) for i in range(0,self.m)],self.coinsP[-m:])
+		self.coinsP = self.coinsP[:-m]
+		return v, tt
 
 def keys(pubkey,DGK_pubkey):
 	pubkeys = {}
@@ -252,7 +257,8 @@ def main():
 					#msgf = [mpz(x/(2**DEFAULT_PRECISION))for x in temp_mu] ### int((mu_bar*2**(2f) + r)/2**f)
 					msgf = retrieve_fixed_point_vector([int(x) for x in temp_mu])
 					# print(msgf) ### if r=0, supposed to be mu_bar*2**f
-					msgf = encrypt_vector(target.pubkey,msgf,target.coinsP)
+					msgf = encrypt_vector(target.pubkey,msgf,target.coinsP[-m:])
+					target.coinsP = target.coinsP[:-m]
 					# Send msgf		
 					serialized_data = send_encr_data(msgf)
 					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
@@ -264,12 +270,14 @@ def main():
 					data = json.loads(recv_size(sock))
 					z = get_enc_data(data,pubkey)
 					target.init_comparison_target(z)
-					di = encrypt_vector_DGK(DGK_pubkey,target.d,target.coinsDGK)
+					di = encrypt_vector_DGK(DGK_pubkey,target.d,target.coinsDGK[-m:])
+					target.coinsDGK = target.coinsDGK[:-m]
 					# Send di
 					serialized_data = send_DGK_data(di)
 					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
 					b = [[0]*l]*m
-					b = [encrypt_vector_DGK(DGK_pubkey,[int(target.beta[i][j]) for j in range(0,l)],target.coinsDGK) for i in range(0,m)]
+					b = [encrypt_vector_DGK(DGK_pubkey,[int(target.beta[i][j]) for j in range(0,l)],target.coinsDGK[-(i+1)*l:-i*l] or target.coinsDGK[-l:]) for i in range(0,m)]
+					target.coinsDGK = target.coinsDGK[:-l*m]
 					# Send b
 					serialized_data = send_DGK_matrix(b)
 					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))

@@ -64,12 +64,13 @@ def write_matrices(n,m):
 
 
 def main():
-	# for n in range(75,81,10):
-	# 	for m in range(45,46,8):
-	# 		print(n,m)
-	# 		write_matrices(n,m)
-	n = 5
-	m = 5
-	write_matrices(n,m)
+	for n in range(10,101,10):
+		m = 101
+	# for m in range(5,94,8):
+		print(n,m)
+		write_matrices(n,m)
+	# n = 5
+	# m = 5
+	# write_matrices(n,m)
 
 main()

@@ -148,16 +148,18 @@ class Cloud:
 		random_state = gmpy2.random_state(seed)
 		coinsP = [gmpy2.mpz_urandomb(random_state,self.N_len-1) for i in range(0,4*m*K)]
 		coinsP = [gmpy2.powmod(x, self.N, self.N2) for x in coinsP]
-		self.coinsP = coinsP
 		coinsDGK = [gmpy2.mpz_urandomb(random_state,2*sigma) for i in range(0,2*(l+1)*m*K)]
 		coinsDGK = [gmpy2.powmod(self.DGK_pubkey.h, x, self.DGK_pubkey.n) for x in coinsDGK]
 		self.coinsDGK = coinsDGK
 		random_state = gmpy2.random_state(seed)
 		rn = [2**DEFAULT_PRECISION*gmpy2.mpz_urandomb(random_state,sigma+l) for i in range(0,m*K)]
 		# rn = [2**(l) for i in range(0,m*K)]
-		self.fixedNoise = encrypt_vector(self.pubkey, rn, coinsP)
-		er = encrypt_vector(self.pubkey,retrieve_fixed_point_vector([-x for x in rn]),coinsP)
+		self.fixedNoise = encrypt_vector(self.pubkey, rn, coinsP[-m*K:])
+		er = encrypt_vector(self.pubkey,retrieve_fixed_point_vector([-x for x in rn]),coinsP[-2*m*K:-m*K])
 		self.er = er
+		coinsP = coinsP[:-2*m*K]
+		self.coinsP = coinsP
+
 
 	def compute_grad(self,b_A,c_A):
 		mu_bar = sum_encrypted_vectors(numpy.dot(self.coeff_mu,self.mu),numpy.dot(self.coeff_c,c_A))
@@ -167,11 +169,8 @@ class Cloud:
 	def temporary_prec_mu(self):
 		m = self.m
 		pubkey = self.pubkey
-		# for i in range(0,m):
-			# r[i] = gmpy2.mpz_urandomb(gmpy2.random_state(),self.l + 1) ### FLOAT ONLY HAS 53 BITS OF PRECISION
 		r = [self.fixedNoise.pop() for i in range(0,m)]
 		temp_mu = sum_encrypted_vectors(self.mu_bar,r)		### mu_bar*2**(2f)+r
-		# er = encrypt_vector(pubkey,fixed_point_vector([-x for x in r]), self.coinsP)
 		return temp_mu
 	
 	def compute_primal_optimum(self,c_A):
@@ -197,8 +196,9 @@ class Cloud:
 		r = self.r
 		a,b = self.randomize()
 		z = diff_encrypted_vectors(b,a)
-		z = sum_encrypted_vectors(z,encrypt_vector(pubkey,r,self.coinsP))
-		z = sum_encrypted_vectors(z,encrypt_vector(pubkey,[2**l]*m,self.coinsP))
+		z = sum_encrypted_vectors(z,encrypt_vector(pubkey,r,self.coinsP[-m:]))
+		z = sum_encrypted_vectors(z,encrypt_vector(pubkey,[2**l]*m,self.coinsP[-2*m:-m]))
+		self.coinsP = self.coinsP[:-2*m]
 		alpha = [gmpy2.f_mod_2exp(x,l) for x in r]
 		alpha = [x.digits(2) for x in alpha]
 		for i in range(0,m):
@@ -354,10 +354,10 @@ def get_DGK_matrix(received_dict):
 	return [[mpz(y) for y in x] for x in received_dict]
 
 def main():
-	n_initial = 40
+	n_initial = 10
 	m_initial = 5
-	n_final = 90
-	m_final = 37
+	n_final = n_initial
+	m_final = m_initial
 	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print('Cloud: Socket successfully created')
