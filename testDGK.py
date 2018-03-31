@@ -38,9 +38,9 @@ class DGKpubkey:
 			int: DGK encryption of plaintext.
 
 		Raises:
-			TypeError: if plaintext is not an int.
+			TypeError: if plaintext is not an int or mpz.
 		"""
-		if not isinstance(plaintext, int):
+		if not isinstance(plaintext, int) and not isinstance(plaintext, type(mpz(1))):
 			raise TypeError('Expected int type plaintext but got: %s' %
                             type(plaintext))
 
@@ -130,20 +130,9 @@ def mul_sc_encrypted(a,b,pubkey):
 
 
 # def main():
-# 	file = 'DGK_keys.txt'
+# 	file = 'Keys/DGK_keys512_16.txt'
 # 	p,q,u,vp,vq,fp,fq,g,h = loadkey(file)
 # 	n = p*q
 # 	v = vp*vq
-
-# 	pubkey = DGKpubkey(n,g,h,u)
-# 	privkey = DGKprivkey(p,q,vp,pubkey)
-# 	plaintext = 0
-# 	ciphertext = pubkey.raw_encrypt(plaintext)
-# 	print(privkey.raw_decrypt0(ciphertext))
-# 	plaintext2 = 1
-# 	ciphertext2 = pubkey.raw_encrypt(plaintext2)
-# 	print(privkey.raw_decrypt0(ciphertext2))
-# 	sume = diff_encrypted(ciphertext,ciphertext2,pubkey)
-# 	print(privkey.raw_decrypt0(sume))
 
 # main()

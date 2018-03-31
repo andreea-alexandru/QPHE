@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Adapted from pyphe. Transform it to be a fixed-point library, no encoding
+# Adapted from pyphe https://python-paillier.readthedocs.io/en/develop/. 
+# Transformed it to be a fixed-point library, no encoding
 #
 """Paillier encryption library for partially homomorphic encryption."""
 import random

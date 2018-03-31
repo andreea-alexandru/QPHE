@@ -4,6 +4,8 @@ from phe.util import invert, powmod, getprimeover
 import numpy
 import time
 from gmpy2 import mpz
+import os
+
 
 try:
     import gmpy2
@@ -27,17 +29,6 @@ def isprime(x):
 	return 1
 
 def keysDGK(n_length=DEFAULT_KEYSIZE,l=DEFAULT_MSGSIZE,t=DEFAULT_SECURITYSIZE):
-    # file = 'primes/primes1.txt'
-    # with open(file, 'r') as fin:
-    # 	data=[line.split() for line in fin]
-    # primes = numpy.concatenate(data, axis=0 )
-    # primes = list(map(int, primes))
-    # len_primes = len(primes)
-    
-	# len_u = l+3
-	# while len_u > l+2:
-	# 	u = getprimeover(l)
-	# 	len_u = u.bit_length()
 	u = 2**l
 	len_vp = t+1
 	while len_vp > t:
@@ -178,12 +169,9 @@ def main():
 	p,q,u,vp,vq,fp,fq,g,h = keysDGK()
 	n = p*q
 	v = vp*vq
-	with open(file, 'w') as f:
+	with open(os.path.abspath('Keys/DGK_keys'+str(DEFAULT_KEYSIZE)+'_'+str(DEFAULT_MSGSIZE)+'.txt'),'w') as f:
 		f.write("%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d" % (p, q, u, vp, vq, fp, fq, g, h))
 
-	# p,q,u,vp,vq,fp,fq,g,h = loadkey(file)
-	# n = p*q
-	# print(powmod(g,u*vp*vq,n), powmod(h,vp*vq,n))
 
 
 main()
