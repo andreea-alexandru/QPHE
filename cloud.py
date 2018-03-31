@@ -5,7 +5,7 @@ import sys,struct
 import json
 from gmpy2 import mpz
 import paillier
-import numpy
+import numpy as np
 import time
 import testDGK
 import random
@@ -13,9 +13,10 @@ import random
 
 DEFAULT_KEYSIZE = 512
 DEFAULT_MSGSIZE = 32 # The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
-DEFAULT_SECURITYSIZE = 80
 DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2) # of fractional bits
-NETWORK_DELAY = 0 #0.01 # 10 ms
+DEFAULT_SECURITYSIZE = 80
+DEFAULT_STATISTICAL = 100
+NETWORK_DELAY = 0 #ms
 
 try:
     import gmpy2
@@ -36,10 +37,10 @@ def encrypt_matrix(pubkey, x, coins=None):
 	else: return [[pubkey.encrypt(y,coins.pop()) for y in z] for z in x]
 
 def decrypt_vector(privkey, x):
-    return numpy.array([privkey.decrypt(i) for i in x])
+    return [privkey.decrypt(i) for i in x]
 
 def sum_encrypted_vectors(x, y):
-	return [x[i] + y[i] for i in range(numpy.size(x))]
+	return [x[i] + y[i] for i in range(np.size(x))]
 
 def diff_encrypted_vectors(x, y):
 	return [x[i] - y[i] for i in range(len(x))] 
@@ -59,39 +60,45 @@ def encrypt_vector_DGK(pubkey, x, coins=None):
 	else: return [pubkey.raw_encrypt(y,coins.pop()) for y in x]
 
 def decrypt_vector_DGK(privkey, x):
-    return numpy.array([privkey.raw_decrypt0(i) for i in x])
+    return np.array([privkey.raw_decrypt0(i) for i in x])
 
 ####### We take the convention that a number x < N/3 is positive, and that a number x > 2N/3 is negative. 
 ####### The range N/3 < x < 2N/3 allows for overflow detection.
 
-def fixed_point(scalar,prec=DEFAULT_PRECISION):
-	return mpz(scalar*(2**prec))
+def fp(scalar,prec=DEFAULT_PRECISION):
+	if prec < 0:
+		return gmpy2.t_div_2exp(mpz(scalar),-prec)
+	else: return mpz(gmpy2.mul(scalar,2**prec))
 
-def fixed_point_vector(vec,prec=DEFAULT_PRECISION):
-	if numpy.size(vec)>1:
-		return [fixed_point(x) for x in vec]
+def fp_vector(vec,prec=DEFAULT_PRECISION):
+	if np.size(vec)>1:
+		return [fp(x,prec) for x in vec]
 	else:
-		return fixed_point(vec)
+		return fp(vec,prec)
 
-def fixed_point_matrix(mat,prec=DEFAULT_PRECISION):
-	return [fixed_point_vector(x) for x in mat]
+def fp_matrix(mat,prec=DEFAULT_PRECISION):
+	return [fp_vector(x,prec) for x in mat]
 
-def retrieve_fixed_point(scalar,prec=DEFAULT_PRECISION):
-	# return mpz(scalar/(2**prec))
-	return gmpy2.f_div_2exp(mpz(scalar),prec)
+def retrieve_fp(scalar,prec=DEFAULT_PRECISION):
+	return scalar/(2**prec)
+	# return gmpy2.div(scalar,2**prec)
 
-def retrieve_fixed_point_vector(vec,prec=DEFAULT_PRECISION):
-	return [retrieve_fixed_point(x) for x in vec]
+def retrieve_fp_vector(vec,prec=DEFAULT_PRECISION):
+	return [retrieve_fp(x,prec) for x in vec]
+
+def retrieve_fp_matrix(mat,prec=DEFAULT_PRECISION):
+	return [retrieve_fp_vector(x,prec) for x in mat]
+
 
 class Agents:
     def __init__(self, pubkey,fileb,filec):
     	self.pubkey = pubkey
-    	b_A = numpy.loadtxt(fileb, delimiter='\n')
-    	c_A = numpy.loadtxt(filec, delimiter='\n')
-    	self.enc_b_A = encrypt_vector(pubkey,fixed_point_vector(b_A))
-    	self.enc_c_A = encrypt_vector(pubkey,fixed_point_vector(c_A))
-    	self.m = numpy.size(b_A)
-    	self.n = numpy.size(c_A)
+    	b_A = np.loadtxt(fileb, delimiter='\n')
+    	c_A = np.loadtxt(filec, delimiter='\n')
+    	self.enc_b_A = encrypt_vector(pubkey,fp_vector(b_A))
+    	self.enc_c_A = encrypt_vector(pubkey,fp_vector(c_A))
+    	self.m = np.size(b_A)
+    	self.n = np.size(c_A)
 
     def send_data(self):
     	return self.enc_b_A, self.enc_c_A, self.m, self.n
@@ -100,50 +107,58 @@ class Cloud:
 	def __init__(self, pubkey, DGK_pubkey, fileA, fileQ, fileparam):
 		self.pubkey = pubkey
 		self.DGK_pubkey = DGK_pubkey
-		A = numpy.loadtxt(fileA, delimiter=',')
-		Q = numpy.loadtxt(fileQ, delimiter=',')
-		self.A = A
-		m = numpy.size(A,0)
-		At = A.transpose()
-		self.At = At
-		n = numpy.size(Q,0)
-		self.Q = Q
-		minvQ = -numpy.linalg.inv(Q)			### - Q^{-1}
-		self.minvQ = fixed_point_matrix(minvQ)
-		AinvQ = numpy.dot(A,minvQ)				### - AQ^{-1}
-		self.AinvQ = AinvQ
 		self.N = pubkey.n
 		self.N2 = pubkey.nsquare
-		self.m = m
 		self.N_len = (self.N).bit_length()
 		self.l = DEFAULT_MSGSIZE
-		self.sigma = DEFAULT_SECURITYSIZE
+		self.sigma = DEFAULT_SECURITYSIZE		
+		A = np.loadtxt(fileA, delimiter=',')
+		Q = np.loadtxt(fileQ, delimiter=',')
+		self.A = A
+		m = np.size(A,0)
+		self.m = m
+		At = A.transpose()
+		n = np.size(Q,0)
+		self.Q = Q
+		invQ = np.linalg.inv(Q)			### Q^{-1}
+		AinvQ = np.dot(A,invQ)			###  AQ^{-1}
+		AinvQA = np.dot(AinvQ,At)		### AQ^{-1}A'
+		eigs = np.linalg.eigvals(AinvQA)	
+		eta = 1/np.real(max(eigs))
 		self.delta_A = [0]*m
-		mu = numpy.zeros(m).astype(int)
-		# mu = [x*(2**DEFAULT_PRECISION) for x in numpy.random.randint(-1,1, size=m).astype(int)]
-		self.mu = encrypt_vector(pubkey, mu)
-		param = numpy.loadtxt(fileparam, delimiter='\n')
+		# param = np.loadtxt(fileparam, delimiter='\n')
 		# self.K = param[0]
 		# self.K = int(self.K)
 		self.K = 30
-		self.eta = param[1] 
-		coeff_mu = numpy.identity(m) + self.eta*numpy.dot(AinvQ,At) ### I-\eta AQ^{-1}A'
-		self.coeff_mu = fixed_point_matrix(coeff_mu)
-		coeff_c = self.eta*AinvQ ### -\etaAQ^{-1}
-		self.coeff_c = fixed_point_matrix(coeff_c)
-		coeff_x = numpy.dot(minvQ,At)
-		self.coeff_x = fixed_point_matrix(coeff_x)
+
+		coeff_mu = fp_matrix(np.identity(m) - eta*AinvQA) ### I-\eta AQ^{-1}A'
+		self.coeff_mu = coeff_mu
+		coeff_c = fp_matrix(-eta*AinvQ) 					### -\etaAQ^{-1}
+		self.coeff_c = coeff_c
+		coeff_muK = fp_matrix(np.dot(-invQ,At))			### -Q^{-1}A'
+		self.coeff_muK = coeff_muK
+		coeff_cK = fp_matrix(-invQ)
+		self.coeff_cK = coeff_cK
+		etabar = fp(-eta)	
+		self.etabar = etabar	
 		self.gen_rands()
 
 	def gen_rands(self):
+		lf = DEFAULT_PRECISION
 		m = self.m
 		l = self.l
 		sigma = self.sigma
+		lambd = DEFAULT_STATISTICAL
 		K = self.K
 		random_state = gmpy2.random_state(seed)
-		rn = [[[gmpy2.mpz_urandomb(random_state,l + sigma),gmpy2.mpz_urandomb(random_state,l + sigma)] for i in range(0,m)] for k in range(0,K)]
+		mu = np.zeros(m).astype(int)
+		# mu = fp_vector([gmpy2.mpz_urandomb(random_state,self.l-DEFAULT_PRECISION-1) for i in range(0,m)])
+		self.mu = encrypt_vector(self.pubkey, mu)
+		# Noise for blinding mu in the update step
+		rn = [[[gmpy2.mpz_urandomb(random_state,l+lambd),gmpy2.mpz_urandomb(random_state,l + lambd)] for i in range(0,m)] for k in range(0,K)]
 		self.obfuscations = rn
-		rn = [[gmpy2.mpz_urandomb(random_state,l + sigma) for i in range(0,m)] for k in range(0,K)]
+		# Noise for comparison
+		rn = [[gmpy2.mpz_urandomb(random_state,l+lambd) for i in range(0,m)] for k in range(0,K)]
 		self.rn = rn
 		random_state = gmpy2.random_state(seed)
 		coinsP = [gmpy2.mpz_urandomb(random_state,self.N_len-1) for i in range(0,4*m*K)]
@@ -151,31 +166,31 @@ class Cloud:
 		coinsDGK = [gmpy2.mpz_urandomb(random_state,2*sigma) for i in range(0,2*(l+1)*m*K)]
 		coinsDGK = [gmpy2.powmod(self.DGK_pubkey.h, x, self.DGK_pubkey.n) for x in coinsDGK]
 		self.coinsDGK = coinsDGK
-		random_state = gmpy2.random_state(seed)
-		rn = [2**DEFAULT_PRECISION*gmpy2.mpz_urandomb(random_state,sigma+l) for i in range(0,m*K)]
-		# rn = [2**(l) for i in range(0,m*K)]
+		# Noise for truncation
+		rn = [gmpy2.mpz_urandomb(random_state,lambd+l+lf) for i in range(0,m*K)]
 		self.fixedNoise = encrypt_vector(self.pubkey, rn, coinsP[-m*K:])
-		er = encrypt_vector(self.pubkey,retrieve_fixed_point_vector([-x for x in rn]),coinsP[-2*m*K:-m*K])
+		er = [-fp(x,-lf) for x in rn]
+		er = encrypt_vector(self.pubkey,er,coinsP[-2*m*K:-m*K])
 		self.er = er
 		coinsP = coinsP[:-2*m*K]
 		self.coinsP = coinsP
 
 
 	def compute_grad(self,b_A,c_A):
-		mu_bar = sum_encrypted_vectors(numpy.dot(self.coeff_mu,self.mu),numpy.dot(self.coeff_c,c_A))
-		mu_bar = sum_encrypted_vectors(mu_bar,[x*fixed_point(-self.eta) for x in b_A])
-		self.mu_bar = mu_bar ### \mu_bar*2^{32}
+		mu_bar = sum_encrypted_vectors(np.dot(self.coeff_mu,self.mu),np.dot(self.coeff_c,c_A))
+		mu_bar = sum_encrypted_vectors(mu_bar,[x*self.etabar for x in b_A])
+		self.mu_bar = mu_bar ### \mu_bar*2^{2*lf}
 
 	def temporary_prec_mu(self):
 		m = self.m
 		pubkey = self.pubkey
 		r = [self.fixedNoise.pop() for i in range(0,m)]
-		temp_mu = sum_encrypted_vectors(self.mu_bar,r)		### mu_bar*2**(2f)+r
+		temp_mu = sum_encrypted_vectors(self.mu_bar,r)		### mu_bar*2**(2*lf)+r
 		return temp_mu
 	
 	def compute_primal_optimum(self,c_A):
-		x = numpy.dot(self.coeff_x,self.mu)
-		x = sum_encrypted_vectors(x,numpy.dot(self.minvQ,c_A))
+		x = np.dot(self.coeff_muK,self.mu)
+		x = sum_encrypted_vectors(x,np.dot(self.coeff_cK,c_A))
 		return x
 
 	def randomize(self):
@@ -183,10 +198,10 @@ class Cloud:
 		a = [0]*m
 		b = [0]*m
 		for i in range(0,m):
-			a[i],b[i] = numpy.random.permutation([self.pubkey.encrypt(0),self.mu_bar[i]])
+			a[i],b[i] = np.random.permutation([self.pubkey.encrypt(0),self.mu_bar[i]])
 		self.a = a
 		self.b = b
-		#### ATTENTION AT NUMBERS OVER 2**l
+		### HAVE TO BE NUMBERS OF l BITS
 		return a,b
 
 	def init_comparison_cloud(self):
@@ -199,7 +214,7 @@ class Cloud:
 		z = sum_encrypted_vectors(z,encrypt_vector(pubkey,r,self.coinsP[-m:]))
 		z = sum_encrypted_vectors(z,encrypt_vector(pubkey,[2**l]*m,self.coinsP[-2*m:-m]))
 		self.coinsP = self.coinsP[:-2*m]
-		alpha = [gmpy2.f_mod_2exp(x,l) for x in r]
+		alpha = [gmpy2.t_mod_2exp(x,l) for x in r]
 		alpha = [x.digits(2) for x in alpha]
 		for i in range(0,m):
 			if (len(alpha[i]) < l):
@@ -217,70 +232,44 @@ class Cloud:
 			self.b2[i] = self.b[i]+self.pubkey.encrypt(r[1])
 		return self.a2, self.b2
 
-	def update(self,v,t):
+	def update(self,v):
 		for i in range(0,self.m):
 			r = self.obfuscation[i]
-			self.mu[i] = v[i] + (t[i]-1)*r[0] + t[i]*(-r[1]) ### mu = mpz(mu*2**16)
+			self.mu[i] = v[i] + (self.t[i]-1)*r[0] + self.t[i]*(-r[1]) ### mu = mpz(mu*2**lf)
 
-	def correct_d(self,d):
-		for i in range(0,self.m):
-			# if (self.r[i] < mpz(self.DGK_pubkey.n-1)/2):
-			if (self.r[i] < mpz(self.N-1)/2):
-				d[i] = self.DGK_pubkey.raw_encrypt(0,self.coinsDGK.pop())
-		return d
-
-	def DGK_cloud(self,b,d): ### OPTIMIZE THIS TO DO IT FOR THE WHOLE VECTOR
+	def DGK_cloud(self,b):
 		l = self.l
 		m = self.m
-		c_all = [[0]*l]*m
-		for i in range(0,m):
-			beta = b[i]
-			di = d[i]
-			alpha = self.alpha[i]
+		self.delta_A = [0]*m
+		c_all = [[0]*l]*m;
+		for k in range(0,m):
+			beta = b[k]
+			alpha = self.alpha[k]
 			DGK_pubkey = self.DGK_pubkey
-			delta_A = numpy.random.randint(0,1)
-			self.delta_A[i] = delta_A
-			s = 1 - 2*delta_A
-			w = [0]*l
-			c = [0]*l
-			t_alpha = gmpy2.f_mod_2exp(self.r[i]-self.N,l) #### FIGURE HOW TO REPRESENT NEGATIVE BINARY NUMBERS
-			if (t_alpha < 0): 
-				neg = 1
-			else: neg = 0
-			t_alpha = abs(t_alpha).digits(2)
-			if (len(t_alpha) < l and neg == 0):
-				t_alpha = "".join(['0'*(l-len(t_alpha)),t_alpha])
-			if (len(t_alpha) < l and neg == 1):
-				t_alpha = "".join(['1','0'*(l-len(t_alpha)-1),t_alpha])
-			# l-1 is the MSB
-			for j in range(0,l):
-				l1j = l-1-j
-				if (int(alpha[l1j]) == 0):
-					prod = beta[l1j]
-				else: prod = testDGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),int(beta[l1j]),DGK_pubkey)
-				if (int(alpha[l1j]) == int(t_alpha[l1j])):
-					w[l1j] = prod
-				else:
-					w[l1j] = testDGK.diff_encrypted(prod,di,DGK_pubkey)
-					w[l1j] = gmpy2.powmod(w[l1j],l,DGK_pubkey.n)
-				# w[l1j] = testDGK.mul_sc_encrypted(w[l1j],2**j,DGK_pubkey)
-			w3 = [0]*l
-			for j in range(0,l):
-				l1j = l-1-j
-				if (j==l-1):
-					w3[l1j] = DGK_pubkey.raw_encrypt(0,self.coinsDGK.pop())
-				else: w3[l1j] = w[l1j-1]
-				for k in range(j+2,l):
-					w3[l1j] = testDGK.add_encrypted(w3[l1j],w[l-1-k],DGK_pubkey)
-				w3[l1j] = testDGK.mul_sc_encrypted(w3[l1j],3,DGK_pubkey)
-				c[l1j] = testDGK.add_encrypted(DGK_pubkey.raw_encrypt(s+int(alpha[l1j]),self.coinsDGK.pop()),
-					testDGK.mul_sc_encrypted(di,int(alpha[l1j])-int(t_alpha[l1j]),DGK_pubkey),DGK_pubkey)
-				c[l1j] = testDGK.diff_encrypted(c[l1j],beta[l1j],DGK_pubkey)
-				c[l1j] = testDGK.add_encrypted(c[l1j],w3[l1j],DGK_pubkey)
-				c2 = c
-				r = gmpy2.mpz_urandomb(gmpy2.random_state(),self.sigma+self.sigma)
-				c[l1j] = testDGK.mul_sc_encrypted(c[l1j],r,DGK_pubkey)
-			c_all[i] = numpy.random.permutation(c)
+			delta_A = np.random.randint(0,2)
+			self.delta_A[k] = delta_A
+			prod = [0]*l
+			c = [DGK_pubkey.raw_encrypt(0)]*l
+			for i in range(0,l):
+				if (int(alpha[i]) == 0):
+					prod[i] = beta[i]
+				else: prod[i] = testDGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),beta[i],DGK_pubkey)
+				if (int(delta_A)==int(alpha[i])):
+					if i==0: c[i] = DGK_pubkey.raw_encrypt(0,self.coinsDGK.pop())
+					else: 
+						for iter in range(0,i):
+							c[i] = testDGK.add_encrypted(c[i],prod[iter],DGK_pubkey)
+					if (int(delta_A) == 0):
+						diff = testDGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),beta[i],DGK_pubkey)
+						c[i] = testDGK.add_encrypted(c[i],diff,DGK_pubkey)
+					else: c[i] = testDGK.add_encrypted(c[i],beta[i],DGK_pubkey)
+			for i in range(0,l):
+				if (int(delta_A)==int(alpha[i])):
+					r = gmpy2.mpz_urandomb(gmpy2.random_state(),self.sigma+self.sigma)
+					c[i] = testDGK.mul_sc_encrypted(c[i],r,DGK_pubkey)
+				else: 
+					c[i] = DGK_pubkey.raw_encrypt(gmpy2.mpz_urandomb(gmpy2.random_state(),self.sigma+self.sigma),self.coinsDGK.pop()) 
+			c_all[k] = np.random.permutation(c)
 		return c_all
 
 	def compute_t(self,delta_B,zdivl):
@@ -290,6 +279,7 @@ class Cloud:
 				t[i] = delta_B[i]
 			else: t[i] = self.pubkey.encrypt(1) - delta_B[i]
 			t[i] = zdivl[i] - self.pubkey.encrypt(mpz(gmpy2.f_div_2exp(self.r[i],self.l))) - t[i]
+		self.t = t
 		return t
 
 def key(serialised):
@@ -354,6 +344,7 @@ def get_DGK_matrix(received_dict):
 	return [[mpz(y) for y in x] for x in received_dict]
 
 def main():
+	# In order to run more instances consecutively, change n_final and m_final
 	n_initial = 10
 	m_initial = 5
 	n_final = n_initial
@@ -375,9 +366,6 @@ def main():
 	print('Cloud: Waiting for a connection')
 	connection, client_address = sock.accept()	
 	try:
-		# print('Received {!r}'.format(data))
-		# n = 3
-		# m = 2
 		for n in range(n_initial,n_final+1,10):
 			for m in range(m_initial,m_final+1,8):
 				time.sleep(1)
@@ -409,25 +397,20 @@ def main():
 						# Send temp_mu to the target
 						data = send_encr_data(temp_mu)
 						connection.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
-						# Receive msgf
+						# Receive trunc_mu_r
 						data = json.loads(recv_size(connection))
-						msgf = get_enc_data(data,pubkey)
-						cloud.mu_bar = sum_encrypted_vectors(msgf,[cloud.er.pop() for i in range(0,m)]) ### mu_bar = int(mu_bar*2**16)
-						# ### DEBUG: send cloud.mu_bar
-						# data = send_encr_data(cloud.mu_bar)
-						# connection.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
+						trunc_mu_r = get_enc_data(data,pubkey)
+						cloud.mu_bar = sum_encrypted_vectors(trunc_mu_r,[cloud.er.pop() for i in range(0,m)]) ### mu_bar = int(mu_bar*2**16)
+
+						# Begin comparison procedure
 						# Send z
 						z = cloud.init_comparison_cloud()
 						data = send_encr_data(z)
 						connection.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
-						# Receive di
-						data = json.loads(recv_size(connection))
-						di = get_DGK_data(data)
-						di = cloud.correct_d(di)
-						# Receive b
+						# Receive b = bits of beta
 						data = json.loads(recv_size(connection))
 						b = get_DGK_matrix(data)
-						c = cloud.DGK_cloud(b,di)
+						c = cloud.DGK_cloud(b)
 						# Send c
 						serialized_data = send_DGK_matrix(c)
 						connection.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
@@ -443,17 +426,12 @@ def main():
 						# Receive v
 						data = json.loads(recv_size(connection))
 						v = get_enc_data(data,pubkey)
-						cloud.update(v,t)
-						# ### DEBUG: send cloud.mu
-						# data = send_encr_data(cloud.mu)
-						# connection.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
-						# # cloud.mu = retrieve_fixed_point_vector(cloud.mu)		### No need, mu = int(mu*2**16)
-					# 	# print(decrypt_vector(target.privkey,cloud.mu))
+						cloud.update(v)
 					x = cloud.compute_primal_optimum(c_A)
 					# Send x
 					data = send_encr_data(x)
 					connection.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
-					# Wait for the target to finish its tasks
+					# Wait for the target to finish its tasks -- this is for when consecutive problems are run
 					data = json.loads(recv_size(connection))
 					# Send 1 if the target should keep the connection open and 0 otherwise
 					if(n==n_final and m==m_final):
@@ -470,6 +448,6 @@ def main():
 	# Clean up the connection
 		print('Cloud: Closing connection')
 		connection.close()
-# main()
+
 if __name__ == '__main__':
 	main()
