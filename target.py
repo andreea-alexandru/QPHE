@@ -108,6 +108,12 @@ class Target:
 			"""If the files are not available, generate the keys """
 			keypair = paillier.generate_paillier_keypair(n_length=DEFAULT_KEYSIZE)
 			self.pubkey, self.privkey = keypair
+			file = 'Keys/pubkey'+str(DEFAULT_KEYSIZE)+".txt"
+			with open(file, 'w') as f:
+				f.write("%d" % (self.pubkey.n))
+			file = 'Keys/privkey'+str(DEFAULT_KEYSIZE)+".txt"			
+			with open(file, 'w') as f:
+				f.write("%d\n%d" % (self.privkey.p,self.privkey.q))
 
 		self.l = l
 		self.t_DGK = t_DGK
@@ -148,6 +154,8 @@ class Target:
 		except:
 			"""If the files are not available, generate the keys """
 			p,q,u,vp,vq,fp,fq,g,h = genDGK.keysDGK(KEYSIZE_DGK,MSGSIZE_DGK,self.t_DGK)
+			with open(os.path.abspath('Keys/DGK_keys'+str(DEFAULT_KEYSIZE)+'_'+str(DEFAULT_MSGSIZE)+'.txt'),'w') as f:
+				f.write("%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d" % (p, q, u, vp, vq, fp, fq, g, h))
 
 		n = p*q
 		self.DGK_pubkey = DGK.DGKpubkey(n,g,h,u)

@@ -350,8 +350,8 @@ def main():
 	# In order to run more instances consecutively, change n_final and m_final
 	n_initial = 10
 	m_initial = 5
-	n_final = 20
-	m_final = 15
+	n_final = 10
+	m_final = 5
 	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print('Cloud: Socket successfully created')

@@ -3,7 +3,7 @@ from subprocess import Popen, PIPE
 import sys
  
 """Run the dual gradient ascent for a strongly convex optimization
-	problem on encrypted data in a Two-Server architecture. 
+	problem on encrypted data in a Two-Server architecture: client - target. 
 	The two servers are emulated by different threads.
 	See https://arxiv.org/abs/1809.02267 for more details."""
 
