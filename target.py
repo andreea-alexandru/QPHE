@@ -154,7 +154,7 @@ class Target:
 		except:
 			"""If the files are not available, generate the keys """
 			p,q,u,vp,vq,fp,fq,g,h = genDGK.keysDGK(KEYSIZE_DGK,MSGSIZE_DGK,self.t_DGK)
-			with open(os.path.abspath('Keys/DGK_keys'+str(DEFAULT_KEYSIZE)+'_'+str(DEFAULT_MSGSIZE)+'.txt'),'w') as f:
+			with open(os.path.abspath('Keys/DGK_keys'+str(KEYSIZE_DGK)+'_'+str(MSGSIZE_DGK)+'.txt'),'w') as f:
 				f.write("%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d" % (p, q, u, vp, vq, fp, fq, g, h))
 
 		n = p*q
