@@ -7,22 +7,26 @@ from gmpy2 import mpz
 import paillier
 import numpy as np
 import time
-import testDGK
+import DGK
 import random
 
-
-DEFAULT_KEYSIZE = 512
-DEFAULT_MSGSIZE = 32 # The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
-DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2) # of fractional bits
-DEFAULT_SECURITYSIZE = 80
-DEFAULT_STATISTICAL = 100
-NETWORK_DELAY = 0 #ms
+# Make sure the default parameters are the same as in target.py
+DEFAULT_KEYSIZE = 1024						# set here the default number of bits of the RSA modulus for Paillier
+DEFAULT_MSGSIZE = 32 						# set here the default number of bits the plaintext can have
+DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2)	# set here the default number of fractional bits
+DEFAULT_SECURITYSIZE = 80					# set here the default number of bits for the DGK security parameter
+# The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
+DEFAULT_STATISTICAL = 100					# set here the default number of bits for the one time pads
+NETWORK_DELAY = 0 #0.02 = 20 ms				# set here the default network delay
 
 try:
     import gmpy2
     HAVE_GMP = True
 except ImportError:
     HAVE_GMP = False
+
+seed = 42	# pick a seed for the random generator
+
 
 seed = 42
 
@@ -62,8 +66,8 @@ def encrypt_vector_DGK(pubkey, x, coins=None):
 def decrypt_vector_DGK(privkey, x):
     return np.array([privkey.raw_decrypt0(i) for i in x])
 
-####### We take the convention that a number x < N/3 is positive, and that a number x > 2N/3 is negative. 
-####### The range N/3 < x < 2N/3 allows for overflow detection.
+"""We take the convention that a number x < N/3 is positive, and that a number x > 2N/3 is negative. 
+	The range N/3 < x < 2N/3 allows for overflow detection.""" 
 
 def fp(scalar,prec=DEFAULT_PRECISION):
 	if prec < 0:
@@ -81,7 +85,6 @@ def fp_matrix(mat,prec=DEFAULT_PRECISION):
 
 def retrieve_fp(scalar,prec=DEFAULT_PRECISION):
 	return scalar/(2**prec)
-	# return gmpy2.div(scalar,2**prec)
 
 def retrieve_fp_vector(vec,prec=DEFAULT_PRECISION):
 	return [retrieve_fp(x,prec) for x in vec]
@@ -104,7 +107,7 @@ class Agents:
     	return self.enc_b_A, self.enc_c_A, self.m, self.n
 
 class Cloud:
-	def __init__(self, pubkey, DGK_pubkey, fileA, fileQ, fileparam):
+	def __init__(self, pubkey, DGK_pubkey, fileA, fileQ):
 		self.pubkey = pubkey
 		self.DGK_pubkey = DGK_pubkey
 		self.N = pubkey.n
@@ -120,22 +123,22 @@ class Cloud:
 		At = A.transpose()
 		n = np.size(Q,0)
 		self.Q = Q
-		invQ = np.linalg.inv(Q)			### Q^{-1}
-		AinvQ = np.dot(A,invQ)			###  AQ^{-1}
-		AinvQA = np.dot(AinvQ,At)		### AQ^{-1}A'
+		invQ = np.linalg.inv(Q)			# Q^{-1}
+		AinvQ = np.dot(A,invQ)			#  AQ^{-1}
+		AinvQA = np.dot(AinvQ,At)		# AQ^{-1}A'
 		eigs = np.linalg.eigvals(AinvQA)	
 		eta = 1/np.real(max(eigs))
 		self.delta_A = [0]*m
 		# param = np.loadtxt(fileparam, delimiter='\n')
-		# self.K = param[0]
+		# self.K = param[0]				# This would set the value of K for which the problem converges
 		# self.K = int(self.K)
 		self.K = 30
 
-		coeff_mu = fp_matrix(np.identity(m) - eta*AinvQA) ### I-\eta AQ^{-1}A'
+		coeff_mu = fp_matrix(np.identity(m) - eta*AinvQA) 	# I-\eta AQ^{-1}A'
 		self.coeff_mu = coeff_mu
-		coeff_c = fp_matrix(-eta*AinvQ) 					### -\etaAQ^{-1}
+		coeff_c = fp_matrix(-eta*AinvQ) 					# -\etaAQ^{-1}
 		self.coeff_c = coeff_c
-		coeff_muK = fp_matrix(np.dot(-invQ,At))			### -Q^{-1}A'
+		coeff_muK = fp_matrix(np.dot(-invQ,At))				# -Q^{-1}A'
 		self.coeff_muK = coeff_muK
 		coeff_cK = fp_matrix(-invQ)
 		self.coeff_cK = coeff_cK
@@ -185,7 +188,7 @@ class Cloud:
 		m = self.m
 		pubkey = self.pubkey
 		r = [self.fixedNoise.pop() for i in range(0,m)]
-		temp_mu = sum_encrypted_vectors(self.mu_bar,r)		### mu_bar*2**(2*lf)+r
+		temp_mu = sum_encrypted_vectors(self.mu_bar,r)		# mu_bar*2**(2*lf)+r
 		return temp_mu
 	
 	def compute_primal_optimum(self,c_A):
@@ -201,7 +204,7 @@ class Cloud:
 			a[i],b[i] = np.random.permutation([self.pubkey.encrypt(0),self.mu_bar[i]])
 		self.a = a
 		self.b = b
-		### HAVE TO BE NUMBERS OF l BITS
+		# HAVE TO BE NUMBERS OF l BITS
 		return a,b
 
 	def init_comparison_cloud(self):
@@ -235,7 +238,7 @@ class Cloud:
 	def update(self,v):
 		for i in range(0,self.m):
 			r = self.obfuscation[i]
-			self.mu[i] = v[i] + (self.t[i]-1)*r[0] + self.t[i]*(-r[1]) ### mu = mpz(mu*2**lf)
+			self.mu[i] = v[i] + (self.t[i]-1)*r[0] + self.t[i]*(-r[1]) # mu = mpz(mu*2**lf)
 
 	def DGK_cloud(self,b):
 		l = self.l
@@ -253,20 +256,20 @@ class Cloud:
 			for i in range(0,l):
 				if (int(alpha[i]) == 0):
 					prod[i] = beta[i]
-				else: prod[i] = testDGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),beta[i],DGK_pubkey)
+				else: prod[i] = DGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),beta[i],DGK_pubkey)
 				if (int(delta_A)==int(alpha[i])):
 					if i==0: c[i] = DGK_pubkey.raw_encrypt(0,self.coinsDGK.pop())
 					else: 
 						for iter in range(0,i):
-							c[i] = testDGK.add_encrypted(c[i],prod[iter],DGK_pubkey)
+							c[i] = DGK.add_encrypted(c[i],prod[iter],DGK_pubkey)
 					if (int(delta_A) == 0):
-						diff = testDGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),beta[i],DGK_pubkey)
-						c[i] = testDGK.add_encrypted(c[i],diff,DGK_pubkey)
-					else: c[i] = testDGK.add_encrypted(c[i],beta[i],DGK_pubkey)
+						diff = DGK.diff_encrypted(DGK_pubkey.raw_encrypt(1,self.coinsDGK.pop()),beta[i],DGK_pubkey)
+						c[i] = DGK.add_encrypted(c[i],diff,DGK_pubkey)
+					else: c[i] = DGK.add_encrypted(c[i],beta[i],DGK_pubkey)
 			for i in range(0,l):
 				if (int(delta_A)==int(alpha[i])):
 					r = gmpy2.mpz_urandomb(gmpy2.random_state(),self.sigma+self.sigma)
-					c[i] = testDGK.mul_sc_encrypted(c[i],r,DGK_pubkey)
+					c[i] = DGK.mul_sc_encrypted(c[i],r,DGK_pubkey)
 				else: 
 					c[i] = DGK_pubkey.raw_encrypt(gmpy2.mpz_urandomb(gmpy2.random_state(),self.sigma+self.sigma),self.coinsDGK.pop()) 
 			c_all[k] = np.random.permutation(c)
@@ -289,7 +292,7 @@ def key(serialised):
 	public_key = paillier.PaillierPublicKey(n=n)
 	pk = received_dict['public_key_DGK']
 	n = mpz(pk['n']); g = mpz(pk['g']); h = mpz(pk['h']); u = mpz(pk['u']);
-	DGK_pubkey = testDGK.DGKpubkey(n=n,g=g,h=h,u=u)
+	DGK_pubkey = DGK.DGKpubkey(n=n,g=g,h=h,u=u)
 	return public_key, DGK_pubkey
 
 def send_encr_data(encrypted_number_list):
@@ -347,8 +350,8 @@ def main():
 	# In order to run more instances consecutively, change n_final and m_final
 	n_initial = 10
 	m_initial = 5
-	n_final = n_initial
-	m_final = m_initial
+	n_final = 20
+	m_final = 15
 	# Create a TCP/IP socket
 	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	print('Cloud: Socket successfully created')
@@ -366,8 +369,9 @@ def main():
 	print('Cloud: Waiting for a connection')
 	connection, client_address = sock.accept()	
 	try:
+		# Check that files are available for sizes of n increasing by 10 and for sizes of m increasing by 10
 		for n in range(n_initial,n_final+1,10):
-			for m in range(m_initial,m_final+1,8):
+			for m in range(m_initial,m_final+1,10):
 				time.sleep(1)
 				print('Cloud: Connection from', client_address)
 				data = recv_size(connection)
@@ -377,10 +381,10 @@ def main():
 					fileQ = "Data/Q"+str(n)+"_"+str(m)+".txt"
 					fileb = "Data/b"+str(n)+"_"+str(m)+".txt"
 					filec = "Data/c"+str(n)+"_"+str(m)+".txt"
-					fileparam = "Data/param"+str(n)+"_"+str(m)+".txt"
+					# fileparam = "Data/param"+str(n)+"_"+str(m)+".txt"
 					v = []; t = []
 					agents = Agents(pubkey,fileb,filec)
-					cloud = Cloud(pubkey,DGK_pubkey,fileA,fileQ,fileparam)
+					cloud = Cloud(pubkey,DGK_pubkey,fileA,fileQ)
 					b_A, c_A, m, n = agents.send_data()
 					# Send m and K
 					K = cloud.K
@@ -400,7 +404,7 @@ def main():
 						# Receive trunc_mu_r
 						data = json.loads(recv_size(connection))
 						trunc_mu_r = get_enc_data(data,pubkey)
-						cloud.mu_bar = sum_encrypted_vectors(trunc_mu_r,[cloud.er.pop() for i in range(0,m)]) ### mu_bar = int(mu_bar*2**16)
+						cloud.mu_bar = sum_encrypted_vectors(trunc_mu_r,[cloud.er.pop() for i in range(0,m)]) # mu_bar = int(mu_bar*2**16)
 
 						# Begin comparison procedure
 						# Send z

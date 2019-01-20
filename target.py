@@ -5,19 +5,24 @@ import sys,struct
 import json
 from gmpy2 import mpz
 import paillier
-# from phe import util
 import numpy as np
 import time
-import testDGK
+import DGK
+import genDGK
 import random
 import os
 
+# Make sure the default parameters are the same as in cloud.py
+DEFAULT_KEYSIZE = 1024						# set here the default number of bits of the RSA modulus for Paillier
+DEFAULT_MSGSIZE = 32						# set here the default number of bits the plaintext can have
+DEFAULT_SECURITYSIZE = 80					# set here the default number of bits for the one time pads
+DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2)	# set here the default number of fractional bits
+# The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
+KEYSIZE_DGK = 1024							# set here the default number of bits of the RSA modulus for DGK
+MSGSIZE_DGK = 20							# set here the default number of bits the plaintext in DGK can have (only bits will be encrypted)
+NETWORK_DELAY = 0 #0.02 = 20 ms				# set here the default network delay
 
-DEFAULT_KEYSIZE = 512
-DEFAULT_MSGSIZE = 32 # The message size of DGK has to be greater than 2*log2(DEFAULT_MSGSIZE), check u in DGK_pubkey
-DEFAULT_SECURITYSIZE = 80
-DEFAULT_PRECISION = int(DEFAULT_MSGSIZE/2) # of fractional bits
-NETWORK_DELAY = 0 #0.01 # 10 ms
+seed = 43	# pick a seed for the random generator
 
 
 try:
@@ -26,7 +31,6 @@ try:
 except ImportError:
     HAVE_GMP = False
 
-seed = 42
 
 def encrypt_vector(pubkey, x, coins=None):
 	if (coins==None):
@@ -55,8 +59,8 @@ def encrypt_vector_DGK(pubkey, x, coins=None):
 def decrypt_vector_DGK(privkey, x):
     return np.array([privkey.raw_decrypt0(i) for i in x])
 
-####### We take the convention that a number x < N/3 is positive, and that a number x > 2N/3 is negative. 
-####### The range N/3 < x < 2N/3 allows for overflow detection.
+"""We take the convention that a number x < N/3 is positive, and that a number x > 2N/3 is negative. 
+	The range N/3 < x < 2N/3 allows for overflow detection.""" 
 
 def fp(scalar,prec=DEFAULT_PRECISION):
 	if prec < 0:
@@ -84,21 +88,27 @@ def retrieve_fp_matrix(mat,prec=DEFAULT_PRECISION):
 
 class Target:
 	def __init__(self, l=DEFAULT_MSGSIZE,t_DGK=2*DEFAULT_SECURITYSIZE):
-		keypair = paillier.generate_paillier_keypair(n_length=DEFAULT_KEYSIZE)
-		self.pubkey, self.privkey = keypair
-		# filepub = "Keys/pubkey"+str(DEFAULT_KEYSIZE)+".txt"
-		# with open(filepub, 'r') as fin:
-		# 	data=[line.split() for line in fin]
-		# Np = int(data[0][0])
-		# pubkey = paillier.PaillierPublicKey(n=Np)
 
-		# filepriv = "Keys/privkey"+str(DEFAULT_KEYSIZE)+".txt"
-		# with open(filepriv, 'r') as fin:
-		# 	data=[line.split() for line in fin]
-		# p = mpz(data[0][0])
-		# q = mpz(data[1][0])
-		# privkey = paillier.PaillierPrivateKey(pubkey, p, q)		
-		# self.pubkey = pubkey; self.privkey = privkey
+		try:
+			filepub = "Keys/pubkey"+str(DEFAULT_KEYSIZE)+".txt"
+			with open(filepub, 'r') as fin:
+				data=[line.split() for line in fin]
+			Np = int(data[0][0])
+			pubkey = paillier.PaillierPublicKey(n=Np)
+
+			filepriv = "Keys/privkey"+str(DEFAULT_KEYSIZE)+".txt"
+			with open(filepriv, 'r') as fin:
+				data=[line.split() for line in fin]
+			p = mpz(data[0][0])
+			q = mpz(data[1][0])
+			privkey = paillier.PaillierPrivateKey(pubkey, p, q)		
+			self.pubkey = pubkey; self.privkey = privkey
+
+		except:
+			"""If the files are not available, generate the keys """
+			keypair = paillier.generate_paillier_keypair(n_length=DEFAULT_KEYSIZE)
+			self.pubkey, self.privkey = keypair
+
 		self.l = l
 		self.t_DGK = t_DGK
 		self.generate_DGK()
@@ -132,11 +142,16 @@ class Target:
 
 
 	def generate_DGK(self):
-		file = 'Keys/DGK_keys512_16.txt'
-		p,q,u,vp,vq,fp,fq,g,h = testDGK.loadkey(file)
+		try:
+			file = 'Keys/DGK_keys'+str(KEYSIZE_DGK)+'_'+str(MSGSIZE_DGK)+'.txt'
+			p,q,u,vp,vq,fp,fq,g,h = DGK.loadkey(file)
+		except:
+			"""If the files are not available, generate the keys """
+			p,q,u,vp,vq,fp,fq,g,h = genDGK.keysDGK(KEYSIZE_DGK,MSGSIZE_DGK,self.t_DGK)
+
 		n = p*q
-		self.DGK_pubkey = testDGK.DGKpubkey(n,g,h,u)
-		self.DGK_privkey = testDGK.DGKprivkey(p,q,vp,self.DGK_pubkey)
+		self.DGK_pubkey = DGK.DGKpubkey(n,g,h,u)
+		self.DGK_privkey = DGK.DGKprivkey(p,q,vp,self.DGK_pubkey)
 
 
 	def DGK_target(self,c_all):
@@ -221,97 +236,98 @@ def get_DGK_matrix(received_dict):
 	return [[mpz(y) for y in x] for x in received_dict]
 
 def main():
-		lf = DEFAULT_PRECISION
-		start = time.time()
+	lf = DEFAULT_PRECISION
+
+	start = time.time()
 	# Create a TCP/IP socket
-		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		port = 10000
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	port = 10000
 
-		# Connect the socket to the port where the server is listening
-		localhost = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
-		server_address = (localhost, port)
-		print('Target: Connecting to {} port {}'.format(*server_address))
-		sock.connect(server_address)			
-		target = Target()
-		pubkey = target.pubkey
-		privkey = target.privkey
-		DGK_pubkey = target.DGK_pubkey
-		serialized_pubkeys = keys(pubkey,DGK_pubkey)
-		cont = True
-		off = time.time() - start
-		try:		
-			while cont:
-				time.sleep(1)
-				start = time.time()
-				# Send public key
-				sock.sendall(struct.pack('>i', len(serialized_pubkeys))+serialized_pubkeys.encode('utf-8'))					
-				# Receive m and K
+	# Connect the socket to the port where the server is listening
+	localhost = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
+	server_address = (localhost, port)
+	print('Target: Connecting to {} port {}'.format(*server_address))
+	sock.connect(server_address)			
+	target = Target()
+	pubkey = target.pubkey
+	privkey = target.privkey
+	DGK_pubkey = target.DGK_pubkey
+	serialized_pubkeys = keys(pubkey,DGK_pubkey)
+	cont = True
+	off = time.time() - start
+	try:		
+		while cont:
+			time.sleep(1)
+			start = time.time()
+			# Send public key
+			sock.sendall(struct.pack('>i', len(serialized_pubkeys))+serialized_pubkeys.encode('utf-8'))					
+			# Receive m and K
+			data = json.loads(recv_size(sock))
+			m,K = get_plain_data(data)
+			offline = off + time.time()-start
+			start = time.time()
+			l = target.l
+			target.params(m,K)
+			for k in range(0,K):
+				# Receive temp_mu
 				data = json.loads(recv_size(sock))
-				m,K = get_plain_data(data)
-				offline = off + time.time()-start
-				start = time.time()
-				l = target.l
-				target.params(m,K)
-				for k in range(0,K):
-					# Receive temp_mu
-					data = json.loads(recv_size(sock))
-					temp_mu = get_enc_data(data,pubkey)
-					temp_mu = decrypt_vector(privkey,temp_mu)
-					msgf = fp_vector(temp_mu,-lf)
-					msgf = encrypt_vector(target.pubkey,msgf,target.coinsP[-m:])
-					target.coinsP = target.coinsP[:-m]
-					# Send msgf		
-					serialized_data = send_encr_data(msgf)
-					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
+				temp_mu = get_enc_data(data,pubkey)
+				temp_mu = decrypt_vector(privkey,temp_mu)
+				msgf = fp_vector(temp_mu,-lf)
+				msgf = encrypt_vector(target.pubkey,msgf,target.coinsP[-m:])
+				target.coinsP = target.coinsP[:-m]
+				# Send msgf		
+				serialized_data = send_encr_data(msgf)
+				sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
 
-					# Begin comparison procedure
-					# Receive z
-					data = json.loads(recv_size(sock))
-					z = get_enc_data(data,pubkey)
-					target.init_comparison_target(z)
-					b = [[0]*l]*m
-					b = [encrypt_vector_DGK(DGK_pubkey,[int(target.beta[i][j]) for j in range(0,l)],target.coinsDGK[-(i+1)*l:-i*l] or target.coinsDGK[-l:]) for i in range(0,m)]
-					target.coinsDGK = target.coinsDGK[:-l*m]
-					# Send b = bits of beta
-					serialized_data = send_DGK_matrix(b)
-					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
-					# Receive c
-					data = json.loads(recv_size(sock))
-					c = get_DGK_matrix(data)
-					delta_B, zdivl = target.DGK_target(c)
-					# Send delta_B, zdivl
-					serialized_data = send_encr_data(delta_B+zdivl)
-					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
-					# Receive t,a2,bs
-					data = json.loads(recv_size(sock))
-					merged = get_enc_data(data,pubkey)
-					t = merged[:m]; a2 = merged[m:2*m]; b2 = merged[2*m:]
-					target.t = decrypt_vector(target.privkey,t)
-					v = target.choose(a2,b2)
-					# Send v
-					serialized_data = send_encr_data(v)
-					sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
-				# Receive x
+				# Begin comparison procedure
+				# Receive z
 				data = json.loads(recv_size(sock))
-				x = get_enc_data(data,pubkey)
-				x = retrieve_fp_vector(decrypt_vector(privkey,x),2*lf)
-				print(["%.8f"% i for i in x])
-				end = time.time()
-				sec = end-start
-				print("%.2f" % sec)
-				n = len(x)
-				sys.stdout.flush()
-				with open(os.path.abspath('Results/'+str(DEFAULT_KEYSIZE)+'_'+str(DEFAULT_MSGSIZE)+'_results_'+str(K)+'.txt'),'a+') as f: f.write("%d, %d, %.2f, %.2f\n" % (n,target.m,sec,offline))
-				# Let the cloud know that it is ready
-				data = json.dumps(1)
-				sock.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
-				# Receive 1 if to continue and 0 if to end
+				z = get_enc_data(data,pubkey)
+				target.init_comparison_target(z)
+				b = [[0]*l]*m
+				b = [encrypt_vector_DGK(DGK_pubkey,[int(target.beta[i][j]) for j in range(0,l)],target.coinsDGK[-(i+1)*l:-i*l] or target.coinsDGK[-l:]) for i in range(0,m)]
+				target.coinsDGK = target.coinsDGK[:-l*m]
+				# Send b = bits of beta
+				serialized_data = send_DGK_matrix(b)
+				sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
+				# Receive c
 				data = json.loads(recv_size(sock))
-				cont = bool(int(data))
+				c = get_DGK_matrix(data)
+				delta_B, zdivl = target.DGK_target(c)
+				# Send delta_B, zdivl
+				serialized_data = send_encr_data(delta_B+zdivl)
+				sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
+				# Receive t,a2,bs
+				data = json.loads(recv_size(sock))
+				merged = get_enc_data(data,pubkey)
+				t = merged[:m]; a2 = merged[m:2*m]; b2 = merged[2*m:]
+				target.t = decrypt_vector(target.privkey,t)
+				v = target.choose(a2,b2)
+				# Send v
+				serialized_data = send_encr_data(v)
+				sock.sendall(struct.pack('>i', len(serialized_data))+serialized_data.encode('utf-8'))
+			# Receive x
+			data = json.loads(recv_size(sock))
+			x = get_enc_data(data,pubkey)
+			x = retrieve_fp_vector(decrypt_vector(privkey,x),2*lf)
+			print(["%.8f"% i for i in x])
+			end = time.time()
+			sec = end-start
+			print("%.2f" % sec)
+			n = len(x)
+			sys.stdout.flush()
+			with open(os.path.abspath('Results/delay_'+str(NETWORK_DELAY)+'_'+str(DEFAULT_KEYSIZE)+'_'+str(DEFAULT_MSGSIZE)+'_results_'+str(K)+'.txt'),'a+') as f: f.write("%d, %d, %.2f, %.2f\n" % (n,target.m,sec,offline))
+			# Let the cloud know that it is ready
+			data = json.dumps(1)
+			sock.sendall(struct.pack('>i', len(data))+data.encode('utf-8'))
+			# Receive 1 if to continue and 0 if to end
+			data = json.loads(recv_size(sock))
+			cont = bool(int(data))
 
-		finally:
-			print('Target: Closing socket')
-			sock.close()				
+	finally:
+		print('Target: Closing socket')
+		sock.close()				
 
 
 if __name__ == '__main__':
