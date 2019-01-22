@@ -94,7 +94,16 @@ def retrieve_fp_matrix(mat,prec=DEFAULT_PRECISION):
 
 
 class Agents:
-    def __init__(self, pubkey,fileb,filec):
+    def __init__(self, pubkey, fileb, filec):
+    	"""The Agents are represented as a single entity that holds the 
+    	private data in a quadratic optimization problem, i.e. the linear 
+    	cost c_A  and the bias in the linear constraints b_A. The 
+    	private data is read from fileb and filec. The Agents will encrypt 
+    	their private data with a public key. 
+    	Alternatively, one can use different instances of the 
+    	class if the private data is distributed over multiple files and 
+    	have an extra step of aggregation at the cloud class."""
+
     	self.pubkey = pubkey
     	b_A = np.loadtxt(fileb, delimiter='\n')
     	c_A = np.loadtxt(filec, delimiter='\n')
@@ -108,6 +117,16 @@ class Agents:
 
 class Cloud:
 	def __init__(self, pubkey, DGK_pubkey, fileA, fileQ):
+		"""The cloud is an untrusted entity that receives the encrypted 
+		data of the Agents, then, alongside with the target node, privately 
+		computes the solution to the optimization problem. This happens 
+		by homomorphically computing the encrypted gradient, then 
+		performing the projection on the feasible space by employing a 
+		secure multiparty protocol for comparison with the target node (DGK) 
+		and then obliviously updating the next iterate. The cloud knows 
+		the matrices involved in the quadratic optimization problem, 
+		namely the quadratic cost Q and constraint matrix A."""
+
 		self.pubkey = pubkey
 		self.DGK_pubkey = DGK_pubkey
 		self.N = pubkey.n
@@ -155,12 +174,12 @@ class Cloud:
 		K = self.K
 		random_state = gmpy2.random_state(seed)
 		mu = np.zeros(m).astype(int)
-		# mu = fp_vector([gmpy2.mpz_urandomb(random_state,self.l-DEFAULT_PRECISION-1) for i in range(0,m)])
+		# mu = fp_vector([gmpy2.mpz_urandomb(random_state,self.l-DEFAULT_PRECISION-1) for i in range(0,m)])		# The initial value of mu can be random
 		self.mu = encrypt_vector(self.pubkey, mu)
 		# Noise for blinding mu in the update step
 		rn = [[[gmpy2.mpz_urandomb(random_state,l+lambd),gmpy2.mpz_urandomb(random_state,l + lambd)] for i in range(0,m)] for k in range(0,K)]
 		self.obfuscations = rn
-		# Noise for comparison
+		# Noise for oblivious comparison
 		rn = [[gmpy2.mpz_urandomb(random_state,l+lambd) for i in range(0,m)] for k in range(0,K)]
 		self.rn = rn
 		random_state = gmpy2.random_state(seed)
@@ -182,7 +201,7 @@ class Cloud:
 	def compute_grad(self,b_A,c_A):
 		mu_bar = sum_encrypted_vectors(np.dot(self.coeff_mu,self.mu),np.dot(self.coeff_c,c_A))
 		mu_bar = sum_encrypted_vectors(mu_bar,[x*self.etabar for x in b_A])
-		self.mu_bar = mu_bar ### \mu_bar*2^{2*lf}
+		self.mu_bar = mu_bar # \mu_bar*2^{2*lf}
 
 	def temporary_prec_mu(self):
 		m = self.m

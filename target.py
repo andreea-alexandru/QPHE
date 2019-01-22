@@ -87,8 +87,14 @@ def retrieve_fp_matrix(mat,prec=DEFAULT_PRECISION):
 
 
 class Target:
-	def __init__(self, l=DEFAULT_MSGSIZE,t_DGK=2*DEFAULT_SECURITYSIZE):
-
+	def __init__(self, l=DEFAULT_MSGSIZE, t_DGK=2*DEFAULT_SECURITYSIZE):
+		"""The target node is an untrusted entity that is supposed to 
+		receive the solution to a quadratic optimization problem over 
+		the private data of the Agents and with the cost and constraint 
+		matrices of the cloud. The target node creates the pair of keys, 
+		both Paillier and DGK, with which the private data will be encrypted. 
+		Alongside with the cloud, it privately computes the solution to 
+		the optimization problem. """
 		try:
 			filepub = "Keys/pubkey"+str(DEFAULT_KEYSIZE)+".txt"
 			with open(filepub, 'r') as fin:
