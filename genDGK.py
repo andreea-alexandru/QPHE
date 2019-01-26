@@ -59,7 +59,7 @@ def keysDGK(n_length=DEFAULT_KEYSIZE,l=DEFAULT_MSGSIZE,t=DEFAULT_SECURITYSIZE):
 		# print(n_len)
 	
 	n = p*q
-	g,h = find_gens(p,q,u,vp,vq,fp,fq,n)
+	g,h = find_gens(p,q,u,vp,vq,fp,fq,n,n_length,l,t)
 	return p,q,u,vp,vq,fp,fq,g,h
 
 def loadkey(file):
@@ -174,4 +174,5 @@ def main():
 
 
 
-main()
+# if __name__ == '__main__':
+# 	main()
